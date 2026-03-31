@@ -1,19 +1,40 @@
-# Baileys WhatsApp API + Bridge
+# Baileys-Chatwoot Bridge
 
-WhatsApp Web API usando Baileys con integración opcional a Chatwoot.
+Bridge bidireccional entre WhatsApp (vía Baileys) y Chatwoot.
 
-## ⚠️ Aviso Legal
+## Arquitectura
 
-Este proyecto usa la librería Baileys para interactuar con WhatsApp Web. WhatsApp no avala ni apoya este proyecto. Uselo bajo su propia responsabilidad y cumpla con los Términos de Servicio de WhatsApp.
+```
+WhatsApp ←→ Baileys ←→ Bridge ←→ Chatwoot
+                              ↓
+                    ┌─────────────────┐
+                    │ Mensajes        │
+                    │ Imágenes        │
+                    │ Audio/Voz      │
+                    │ Videos          │
+                    │ Documentos      │
+                    └─────────────────┘
+```
 
-## 📦 Proyectos
+## Características
 
-Este repo contiene:
+- ✅ Mensajes de texto
+- ✅ Imágenes
+- ✅ Audio / Notas de voz
+- ✅ Videos
+- ✅ Documentos
+- ✅ Conversaciones en Chatwoot
+- ✅ Agentes responden desde Chatwoot
+- ✅ Sincronización de estado
 
-1. **Baileys WhatsApp API** - API REST para enviar/recibir mensajes de WhatsApp
-2. **Chatwoot Bridge** - Integración con Chatwoot como bandeja de entrada
+## Requisitos
 
-## 🚀 Inicio Rápido
+- Node.js 20+
+- Docker (opcional)
+- Cuenta Chatwoot con API enabled
+- Número de WhatsApp (no se puede usar el mismo que en WhatsApp Web)
+
+## Instalación
 
 ### Docker (Recomendado)
 
@@ -31,49 +52,81 @@ docker compose up -d
 
 # Ver logs
 docker compose logs -f
+
+# Escanear QR (la primera vez)
+curl http://localhost:3001/qr
 ```
 
-## 📡 API Endpoints
+### Local
+
+```bash
+npm install
+npm run dev
+```
+
+## Configuración
+
+### 1. Chatwoot
+
+1. Crear una cuenta en tu instancia de Chatwoot
+2. Ir a **Settings → Integrations → Webhooks**
+3. Crear webhook con URL: `http://tu-dominio:3002/`
+4. Seleccionar eventos: `message_created`
+5. Copiar el API token del profile
+
+### 2. Variables de Entorno
+
+```bash
+CHATWOOT_URL=https://tu-chatwoot.com
+CHATWOOT_API_KEY=tu_api_key
+CHATWOOT_INBOX_ID=1
+WEBHOOK_SECRET=secreto_opcional
+```
+
+## API Endpoints
 
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
-| `POST` | `/session/:sessionId` | Iniciar sesión (genera QR) |
-| `GET` | `/qr/:sessionId` | Obtener QR como imagen base64 |
+| `GET` | `/health` | Estado del bridge |
+| `GET` | `/qr` | QR code para escanear |
 | `POST` | `/send` | Enviar mensaje |
-| `POST` | `/broadcast` | Broadcast a múltiples números |
-| `GET` | `/contacts/:sessionId` | Obtener contactos |
-| `DELETE` | `/session/:sessionId` | Eliminar sesión (logout) |
-| `GET` | `/sessions` | Listar sesiones activas |
-| `GET` | `/health` | Health check |
+| `POST` | `/webhook` | Webhook de Chatwoot |
 
-## 🔌 Chatwoot Bridge
+### Enviar Mensaje
 
-Ver [PLAN_CHATWOOT_BRIDGE.md](./PLAN_CHATWOOT_BRIDGE.md) para documentación de integración con Chatwoot.
+```bash
+curl -X POST http://localhost:3001/send \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "34612345678",
+    "text": "Hola desde el bridge!"
+  }'
+```
 
-### Características del Bridge
+### Configurar Webhook en Chatwoot
 
-- Mensajes de texto, imágenes, audio, video, documentos
-- Sincronización de estado (entregado, leído)
-- Indicadores de typing
-- Conversaciones en Chatwoot
+En Chatwoot Settings → Integrations → Webhooks:
+- URL: `http://tu-ip-publica:3002/`
+- Events: `message_created`
+- Secret: (opcional)
 
-## 🔒 Seguridad
+## Uso
 
-- Las credenciales se guardan en disco localmente
-- No exponga los puertos públicamente sin firewall
-- WhatsApp puede banear cuentas por uso automatizado
+1. **Iniciar**: El bridge arranca y genera un QR
+2. **Escanear**: Abre `/qr` y escanea con WhatsApp
+3. **Usar**: Los mensajes de WhatsApp aparecen en Chatwoot
+4. **Responder**: Los agentes responden desde Chatwoot y llegan a WhatsApp
 
-## 📝 Notas
+## Problemas Conocidos
 
-- WhatsApp puede banear cuentas por uso automatizado
-- No recomendado para spam o mensajes masivos
-- Una sesión puede desconectarse si WhatsApp detecta uso sospechoso
+⚠️ **Ban de WhatsApp**: Usar Baileys puede resultar en ban si WhatsApp detecta uso automatizado.
 
-## 📄 Documentación
+## Seguridad
 
-- [README.md](./README.md) - Documentación principal
-- [PLAN_CHATWOOT_BRIDGE.md](./PLAN_CHATWOOT_BRIDGE.md) - Integración Chatwoot
+- No exponer los puertos públicamente sin firewall
+- Usar HTTPS en producción
+- Mantener el API key segura
 
-## 📜 Licencia
+## Licencia
 
 MIT

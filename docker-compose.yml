@@ -1,18 +1,28 @@
 version: '3.8'
 
 services:
-  whatsapp-api:
+  whatsapp-bridge:
     build: .
-    container_name: whatsapp-api
+    container_name: whatsapp-bridge
     restart: unless-stopped
     ports:
-      - "3001:3001"
+      - "3001:3001"  # API
+      - "3002:3002"  # Webhook receiver
     volumes:
       - ./auth:/app/auth
+      - ./data:/app/data
+      - ./media:/app/media
       - ./logs:/app/logs
     environment:
       - NODE_ENV=production
       - PORT=3001
+      - WEBHOOK_PORT=3002
+      - CHATWOOT_URL=${CHATWOOT_URL}
+      - CHATWOOT_API_KEY=${CHATWOOT_API_KEY}
+      - CHATWOOT_INBOX_ID=${CHATWOOT_INBOX_ID}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
+      - SESSION_ID=default
+      - SESSION_DIR=/app/auth
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/health"]
       interval: 30s

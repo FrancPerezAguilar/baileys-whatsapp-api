@@ -1,0 +1,21 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
+export const config = {
+  chatwoot: {
+    url: process.env.CHATWOOT_URL || 'http://localhost:3000',
+    apiKey: process.env.CHATWOOT_API_KEY,
+    inboxId: process.env.CHATWOOT_INBOX_ID,
+  },
+  session: {
+    id: process.env.SESSION_ID || 'default',
+    dir: process.env.SESSION_DIR || './auth',
+  },
+  server: {
+    port: parseInt(process.env.PORT || '3001'),
+    webhookPort: parseInt(process.env.WEBHOOK_PORT || '3002'),
+  },
+  webhook: {
+    secret: process.env.WEBHOOK_SECRET,
+  }
+};

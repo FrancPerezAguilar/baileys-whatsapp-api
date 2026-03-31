@@ -2,7 +2,7 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install sharp for QR code generation
+# Install dependencies for native modules
 RUN apk add --no-cache python3 make g++
 
 # Copy package files
@@ -14,11 +14,11 @@ RUN npm install
 # Copy source code
 COPY src/ ./src/
 
-# Create auth directory
-RUN mkdir -p /app/auth
+# Create directories
+RUN mkdir -p /app/auth /app/data /app/media /app/logs
 
-# Expose port
-EXPOSE 3001
+# Expose ports
+EXPOSE 3001 3002
 
 # Run
 CMD ["node", "src/index.js"]
