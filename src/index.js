@@ -69,7 +69,14 @@ class WhatsAppBridge {
       if (qr) {
         this.qrCode = qr;
         console.log('[Baileys] QR Code received - scan with WhatsApp');
-        await telegramNotifier.alertSessionQR();
+
+        // Send QR via Telegram if configured
+        try {
+          const qrImage = await QRCode.toDataURL(qr);
+          await telegramNotifier.alertSessionQR(qrImage);
+        } catch (err) {
+          console.error('[Baileys] Error sending QR to Telegram:', err.message);
+        }
       }
 
       if (connection === 'connected') {
