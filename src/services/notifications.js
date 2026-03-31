@@ -7,6 +7,10 @@ const ALERT_LEVELS = {
   CRITICAL: '🚨'
 };
 
+// Deduplication: don't send same alert within this time window (ms)
+const DEDUP_WINDOW_MS = 30000; // 30 seconds
+const lastSentCache = new Map(); // key -> timestamp
+
 function escapeHtml(text) {
   if (!text) return '';
   return String(text)
@@ -15,6 +19,33 @@ function escapeHtml(text) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+// Generate a short hash for deduplication key
+function getAlertKey(alertType, ...args) {
+  const data = args.map(a => String(a || '').substring(0, 50)).join('|');
+  return `${alertType}:${data}`;
+}
+
+function shouldSend(alertKey) {
+  const now = Date.now();
+  const lastSent = lastSentCache.get(alertKey);
+
+  if (lastSent && (now - lastSent) < DEDUP_WINDOW_MS) {
+    console.log(`[Telegram] Deduplicated: "${alertKey}" (sent ${Math.round((now - lastSent)/1000)}s ago)`);
+    return false;
+  }
+
+  lastSentCache.set(alertKey, now);
+
+  // Cleanup old entries periodically
+  if (lastSentCache.size > 100) {
+    for (const [key, ts] of lastSentCache.entries()) {
+      if (now - ts > DEDUP_WINDOW_MS * 2) lastSentCache.delete(key);
+    }
+  }
+
+  return true;
 }
 
 class TelegramNotifier {
@@ -36,9 +67,15 @@ class TelegramNotifier {
     }
   }
 
-  async send(text, parseMode = 'HTML', disableNotification = false) {
+  async send(text, parseMode = 'HTML', disableNotification = false, alertKey = null) {
     if (!this.enabled) {
       console.log(`[Telegram] Alert (not sent - not configured): ${text}`);
+      return false;
+    }
+
+    // Deduplicate by default text content
+    const key = alertKey || getAlertKey('text', text);
+    if (!shouldSend(key)) {
       return false;
     }
 
@@ -71,9 +108,15 @@ class TelegramNotifier {
     }
   }
 
-  async sendPhoto(photoBase64, caption) {
+  async sendPhoto(photoBase64, caption, alertKey = null) {
     if (!this.enabled) {
       console.log(`[Telegram] Photo alert (not sent - not configured): ${caption}`);
+      return false;
+    }
+
+    // Deduplicate
+    const key = alertKey || getAlertKey('photo', caption);
+    if (!shouldSend(key)) {
       return false;
     }
 
@@ -149,56 +192,70 @@ class TelegramNotifier {
 
   // Specific alerts
   async alertSessionStarted() {
+    if (!shouldSend('alert:session-started')) return false;
     return this.info('🔌 <b>Sesión iniciada</b>\n\nEl bridge de WhatsApp está funcionando correctamente.');
   }
 
   async alertSessionClosed(reason = 'Unknown') {
+    if (!shouldSend('alert:session-closed', reason)) return false;
     return this.error(`📱 <b>Sesión cerrada</b>\n\nRazón: ${reason}\n\nEl bridge necesita atención. Verifica la conexión.`);
   }
 
   async alertSessionQR(qrImageBase64 = null) {
     if (qrImageBase64 && this.enabled) {
+      // QR photos are always sent (time-sensitive, different each time)
       return this.sendPhoto(
         qrImageBase64,
-        '📱 <b>QR Code - Escanea con WhatsApp</b>\n\n<i>Este código expira en 60 segundos</i>'
+        '📱 <b>QR Code - Escanea con WhatsApp</b>\n\n<i>Este código expira en 60 segundos</i>',
+        'alert:qr-session'
       );
     }
+    if (!shouldSend('alert:qr-generated')) return false;
     return this.info(`📱 <b>QR Code generado</b>\n\nEscanea el QR para conectar WhatsApp.`);
   }
 
   async alertSessionConnected() {
+    if (!shouldSend('alert:session-connected')) return false;
     return this.info('✅ <b>WhatsApp conectado</b>\n\nSesión activa y funcionando.');
   }
 
   async alertChatwootMessageFailed(error, sender) {
+    if (!shouldSend('alert:chatwoot-failed', sender, error)) return false;
     return this.error(`❌ <b>Mensaje a Chatwoot falló</b>\n\nDe: ${escapeHtml(sender)}\nError: ${escapeHtml(error)}\n\nEl mensaje se reintentará automáticamente.`);
   }
 
   async alertChatwootAPIFailed(attempt, maxAttempts) {
+    if (!shouldSend('alert:chatwoot-api-failed', attempt)) return false;
     return this.warning(`⚠️ <b>Chatwoot API falló</b>\n\nIntento ${attempt}/${maxAttempts}\n\nSe reintentará automáticamente.`);
   }
 
   async alertChatwootMessageSent(to, preview) {
+    if (!shouldSend('alert:chatwoot-sent', to)) return false;
     return this.info(`📤 <b>Mensaje enviado a Chatwoot</b>\n\nPara: ${to}\n${preview.substring(0, 100)}`);
   }
 
   async alertBridgeStarted() {
+    if (!shouldSend('alert:bridge-started')) return false;
     return this.info('🚀 <b>Bridge iniciado</b>\n\nEl servicio está arrancando...');
   }
 
   async alertBridgeError(error) {
+    if (!shouldSend('alert:bridge-error', error.substring(0, 100))) return false;
     return this.critical(`🚨 <b>Error crítico en Bridge</b>\n\n${error}`);
   }
 
   async alertRateLimited(identifier, count) {
+    if (!shouldSend('alert:rate-limited', identifier)) return false;
     return this.warning(`⚠️ <b>Rate limit</b>\n\n${escapeHtml(identifier)} ha enviado ${count} mensajes. Mensajes ignorados por ahora.`);
   }
 
   async alertMediaDownloadFailed(msgId, error) {
+    if (!shouldSend('alert:media-failed', msgId)) return false;
     return this.warning(`⚠️ <b>Descarga de media falló</b>\n\nMensaje: ${msgId}\nError: ${error}`);
   }
 
   async alertRetryFailed(jobId, attempts) {
+    if (!shouldSend('alert:retry-failed', jobId)) return false;
     return this.error(`❌ <b>Reintento fallido</b>\n\nJob: ${jobId}\nIntentos: ${attempts}\n\nSe necesita intervención manual.`);
   }
 }
