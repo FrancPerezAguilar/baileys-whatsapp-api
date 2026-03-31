@@ -40,7 +40,7 @@ class WhatsAppBridge {
   async start() {
     console.log('[Baileys] Starting WhatsApp bridge...');
     
-    const { state, saveCreds } = await useMultiFileAuthState(this.authDir);
+    const { state: baileyState, saveCreds } = await useMultiFileAuthState(this.authDir);
     const { version } = await fetchLatestBaileysVersion();
 
     this.sock = makeWASocket({
@@ -91,7 +91,7 @@ class WhatsAppBridge {
         } else {
           console.log('[Baileys] Logged out - clear auth to reconnect');
           await telegramNotifier.alertSessionClosed('Sesión cerrada - requiere re-autenticación');
-          state.clear();
+          baileyState.clear();
         }
       }
     });
@@ -328,7 +328,7 @@ async function gracefulShutdown(signal) {
   retryQueue.stop();
   cache.stop();
   if (bridge.sock) {
-    bridge.sock.end(undefined);
+    bridge.sock.end();
   }
   process.exit(0);
 }
