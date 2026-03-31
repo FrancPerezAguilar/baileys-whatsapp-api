@@ -13,14 +13,20 @@ import { fileURLToPath } from 'url';
 import { mkdirSync, existsSync, readFileSync } from 'fs';
 import pino from 'pino';
 
-// Create pino logger and ensure trace method exists (Baileys uses logger.trace)
-const baseLogger = pino({ level: process.env.LOG_LEVEL || 'warn' });
-
-// Create a plain object with pino's methods plus our trace override
-const logger = Object.assign({}, baseLogger, {
-  trace: (...args) => baseLogger.debug(...args),
-  traceIf: (condition, ...args) => condition ? baseLogger.debug(...args) : undefined
+// Use pino directly - pino has trace, debug, info, warn, error, fatal
+// and also child() method (which is on the prototype)
+const logger = pino({
+  level: process.env.LOG_LEVEL || 'warn',
+  // Add trace as an alias to debug (pino doesn't have native trace)
+  formatters: {
+    level: (label) => ({ level: label }),
+  },
 });
+
+// Add trace method dynamically if missing (some versions of pino don't have it)
+if (typeof logger.trace !== 'function') {
+  logger.trace = logger.debug.bind(logger);
+}
 
 import { config } from './config.js';
 import chatwoot from './services/chatwoot.js';
