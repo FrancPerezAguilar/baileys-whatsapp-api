@@ -1,4 +1,5 @@
 import state from '../state/store.js';
+import crypto from 'crypto';
 
 export async function handleOutgoingMessage(sock, payload) {
   try {
@@ -76,12 +77,35 @@ export async function handleOutgoingMessage(sock, payload) {
   }
 }
 
-export function validateWebhook(payload, secret) {
-  if (!secret) return true; // Skip validation if no secret configured
-  
-  // Chatwoot sends signature in headers
-  // Could implement HMAC validation here
-  return true;
+export function validateWebhook(rawBody, signature, secret) {
+  if (!secret) {
+    console.warn('[Webhook] No WEBHOOK_SECRET configured — webhook validation disabled (INSECURE)');
+    return true; // Allow if no secret configured (dev mode)
+  }
+
+  if (!signature) {
+    console.warn('[Webhook] No signature header received');
+    return false;
+  }
+
+  try {
+    const hmac = crypto.createHmac('sha256', secret);
+    hmac.update(typeof rawBody === 'string' ? rawBody : JSON.stringify(rawBody));
+    const expected = hmac.digest('hex');
+
+    // Use timing-safe comparison to prevent timing attacks
+    const sigBuffer = Buffer.from(signature, 'utf8');
+    const expectedBuffer = Buffer.from(expected, 'utf8');
+
+    if (sigBuffer.length !== expectedBuffer.length) {
+      return false;
+    }
+
+    return crypto.timingSafeEqual(sigBuffer, expectedBuffer);
+  } catch (error) {
+    console.error('[Webhook] Validation error:', error.message);
+    return false;
+  }
 }
 
 export function parseChatwootWebhook(body) {

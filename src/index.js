@@ -14,7 +14,7 @@ import { cache } from './services/cache.js';
 import { retryQueue } from './services/retryQueue.js';
 import { telegramNotifier } from './services/notifications.js';
 import { handleIncomingMessage, handleMessageDelete } from './handlers/incoming.js';
-import { handleOutgoingMessage, parseChatwootWebhook } from './handlers/outgoing.js';
+import { handleOutgoingMessage, parseChatwootWebhook, validateWebhook } from './handlers/outgoing.js';
 import { downloadAllMedia } from './services/media.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -67,7 +67,6 @@ class WhatsAppBridge {
       if (qr) {
         this.qrCode = qr;
         console.log('[Baileys] QR Code received - scan with WhatsApp');
-        this.qrCode = qr;
         await telegramNotifier.alertSessionQR();
       }
 
@@ -107,7 +106,8 @@ class WhatsAppBridge {
     });
 
     // Handle message deletion
-    this.sock.ev.on('messages.delete', async (keys) => {
+    this.sock.ev.on('messages.delete', async (deleteInfo) => {
+      const keys = deleteInfo?.keys || [];
       for (const key of keys) {
         await handleMessageDelete(this.sock, key);
       }
@@ -186,8 +186,27 @@ bridge.start().catch(console.error);
 
 // Express app for API
 const app = express();
-app.use(cors());
-app.use(express.json());
+app.use(cors({
+  origin: config.chatwoot.url,
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type', 'X-Api-Key', 'Authorization']
+}));
+app.use(express.json({ limit: '1mb' }));
+
+// Authentication middleware
+function authMiddleware(req, res, next) {
+  const apiKey = req.headers['x-api-key'] || req.query.api_key;
+
+  if (!config.webhook.secret) {
+    console.warn('[Auth] No WEBHOOK_SECRET configured — auth disabled (INSECURE)');
+    return next();
+  }
+
+  if (!apiKey || apiKey !== config.webhook.secret) {
+    return res.status(401).json({ error: 'Unauthorized: invalid or missing X-Api-Key header' });
+  }
+  next();
+}
 
 // Health check
 app.get('/health', (req, res) => {
@@ -198,8 +217,8 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Get QR code
-app.get('/qr', async (req, res) => {
+// Get QR code (protected)
+app.get('/qr', authMiddleware, async (req, res) => {
   try {
     const qr = await bridge.getQR();
     res.json(qr);
@@ -208,8 +227,8 @@ app.get('/qr', async (req, res) => {
   }
 });
 
-// Send message
-app.post('/send', async (req, res) => {
+// Send message (protected)
+app.post('/send', authMiddleware, async (req, res) => {
   try {
     const { to, text } = req.body;
     
@@ -224,9 +243,14 @@ app.post('/send', async (req, res) => {
   }
 });
 
-// Webhook from Chatwoot
+// Webhook from Chatwoot (validated via HMAC)
 app.post('/webhook', async (req, res) => {
   try {
+    const signature = req.headers['x-chatwoot-signature'];
+    if (!validateWebhook(req.body, signature, config.webhook.secret)) {
+      return res.status(401).json({ error: 'Invalid webhook signature' });
+    }
+
     const payload = parseChatwootWebhook(req.body);
     await handleOutgoingMessage(bridge.sock, payload);
     res.json({ success: true });
@@ -273,10 +297,15 @@ app.listen(PORT, async () => {
 
 // Start webhook receiver on separate port
 const webhookApp = express();
-webhookApp.use(express.json());
+webhookApp.use(express.json({ limit: '1mb' }));
 
 webhookApp.post('/', async (req, res) => {
   try {
+    const signature = req.headers['x-chatwoot-signature'];
+    if (!validateWebhook(req.body, signature, config.webhook.secret)) {
+      return res.status(401).json({ error: 'Invalid webhook signature' });
+    }
+
     const payload = parseChatwootWebhook(req.body);
     await handleOutgoingMessage(bridge.sock, payload);
     res.json({ success: true });
@@ -290,5 +319,19 @@ const WEBHOOK_PORT = config.server.webhookPort;
 webhookApp.listen(WEBHOOK_PORT, () => {
   console.log(`[Webhook] Receiver running on port ${WEBHOOK_PORT}`);
 });
+
+// Graceful shutdown
+async function gracefulShutdown(signal) {
+  console.log(`[Bridge] ${signal} received, shutting down gracefully...`);
+  retryQueue.stop();
+  cache.stop();
+  if (bridge.sock) {
+    bridge.sock.end(undefined);
+  }
+  process.exit(0);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 export { bridge };
