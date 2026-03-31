@@ -13,7 +13,13 @@ import { fileURLToPath } from 'url';
 import { mkdirSync, existsSync, readFileSync } from 'fs';
 import pino from 'pino';
 
-const logger = pino({ level: process.env.LOG_LEVEL || 'warn' });
+// Create logger with all levels including trace (Baileys requires logger.trace)
+const baseLogger = pino({ level: process.env.LOG_LEVEL || 'warn' });
+const logger = {
+  ...baseLogger,
+  trace: (...args) => baseLogger.debug(...args),
+  traceIf: (condition, ...args) => condition ? baseLogger.debug(...args) : undefined
+};
 
 import { config } from './config.js';
 import chatwoot from './services/chatwoot.js';
