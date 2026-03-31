@@ -71,7 +71,7 @@ class TelegramNotifier {
     }
   }
 
-  async sendPhoto(photoBase64, caption, disableNotification = false) {
+  async sendPhoto(photoBase64, caption) {
     if (!this.enabled) {
       console.log(`[Telegram] Photo alert (not sent - not configured): ${caption}`);
       return false;
@@ -85,16 +85,34 @@ class TelegramNotifier {
       // Convert base64 to binary buffer
       const binaryData = Buffer.from(base64Data, 'base64');
 
-      const formData = new FormData();
-      formData.append('chat_id', this.chatId);
-      formData.append('photo', new Blob([binaryData], { type: 'image/png' }), 'qr.png');
-      formData.append('caption', caption);
-      formData.append('parse_mode', 'HTML');
-      formData.append('disable_notification', disableNotification);
+      // Build multipart form manually for Node.js compatibility
+      const boundary = `----TelegramBoundary${Date.now()}`;
+      const CRLF = '\r\n';
+
+      // chat_id part
+      const chatIdPart = Buffer.from(
+        `--${boundary}${CRLF}Content-Disposition: form-data; name="chat_id"${CRLF}${CRLF}${this.chatId}`
+      );
+
+      // photo part
+      const photoHeader = Buffer.from(
+        `${CRLF}--${boundary}${CRLF}Content-Disposition: form-data; name="photo"; filename="qr.png"${CRLF}Content-Type: image/png${CRLF}${CRLF}`
+      );
+
+      // caption part
+      const captionPart = Buffer.from(
+        `${CRLF}--${boundary}${CRLF}Content-Disposition: form-data; name="caption"${CRLF}Content-Type: text/html${CRLF}${CRLF}${caption}${CRLF}--${boundary}--${CRLF}`
+      );
+
+      // Assemble body
+      const body = Buffer.concat([chatIdPart, photoHeader, binaryData, captionPart]);
 
       const response = await fetch(url, {
         method: 'POST',
-        body: formData
+        headers: {
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        },
+        body
       });
 
       const result = await response.json();

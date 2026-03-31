@@ -45,8 +45,8 @@ class WhatsAppBridge {
 
     this.sock = makeWASocket({
       auth: {
-        creds: state.creds,
-        keys: makeCacheableSignalKeyStore(state.keys, logger.info.bind(logger)),
+        creds: baileyState.creds,
+        keys: makeCacheableSignalKeyStore(baileyState.keys, logger.info.bind(logger)),
       },
       version,
       printQRInTerminal: true,
