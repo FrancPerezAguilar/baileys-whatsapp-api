@@ -61,13 +61,19 @@ cd baileys-whatsapp-api
 cp .env.example .env
 # Editar .env con tus credenciales
 
+# Construir la imagen
+docker compose build --no-cache
+
+# Modificar los permisos
+sudo chown -R 1001:1001 ./auth ./data ./media ./logs
+
 # Construir y ejecutar
 docker compose up -d
 
 # Ver logs
 docker compose logs -f
 
-# Escanear QR (la primera vez)
+# Escanear QR (la primera vez), si no tienes Telegram configurado.
 curl http://localhost:3001/qr
 ```
 
@@ -118,28 +124,31 @@ El bridge puede enviar alertas a Telegram cuando ocurren eventos importantes:
 
 ### Alertas que se envían
 
-| Evento | Nivel | Descripción |
-|--------|-------|-------------|
-| Bridge iniciado | ℹ️ INFO | El servicio arranca |
-| QR generado | ℹ️ INFO | QR disponible para escanear |
-| WhatsApp conectado | ✅ SUCCESS | Sesión activa |
-| Sesión cerrada | ❌ ERROR | Conexión perdida |
-| Mensaje falló | ❌ ERROR | No se pudo enviar a Chatwoot |
-| Rate limit | ⚠️ WARNING | Demasiados mensajes |
-| Error crítico | 🚨 CRITICAL | Problema grave |
+| Evento             | Nivel       | Descripción                  |
+| ------------------ | ----------- | ---------------------------- |
+| Bridge iniciado    | ℹ️ INFO     | El servicio arranca          |
+| QR generado        | ℹ️ INFO     | QR disponible para escanear  |
+| WhatsApp conectado | ✅ SUCCESS  | Sesión activa                |
+| Sesión cerrada     | ❌ ERROR    | Conexión perdida             |
+| Mensaje falló      | ❌ ERROR    | No se pudo enviar a Chatwoot |
+| Rate limit         | ⚠️ WARNING  | Demasiados mensajes          |
+| Error crítico      | 🚨 CRITICAL | Problema grave               |
 
 ## Redis - Cache y Retry
 
 El bridge usa Redis para:
 
 ### Cache
+
 - Conversaciones (JID → Chatwoot ID)
 - Mensajes (mappings WhatsApp ↔ Chatwoot)
 - Contactos
 - Rate limiting por usuario
 
 ### Cola de Reintentos
+
 Si la API de Chatwoot falla:
+
 1. El mensaje se guarda en Redis
 2. Se reintenta con backoff: 1s, 5s, 15s, 30s, 1min
 3. Máximo 5 intentos
@@ -147,16 +156,17 @@ Si la API de Chatwoot falla:
 
 ## API Endpoints
 
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| `GET` | `/health` | Estado del bridge |
-| `GET` | `/qr` | QR code para escanear |
-| `POST` | `/send` | Enviar mensaje |
-| `POST` | `/webhook` | Webhook de Chatwoot |
+| Método | Endpoint   | Descripción           |
+| ------ | ---------- | --------------------- |
+| `GET`  | `/health`  | Estado del bridge     |
+| `GET`  | `/qr`      | QR code para escanear |
+| `POST` | `/send`    | Enviar mensaje        |
+| `POST` | `/webhook` | Webhook de Chatwoot   |
 
 ## Configurar Webhook en Chatwoot
 
 En Chatwoot Settings → Integrations → Webhooks:
+
 - URL: `http://tu-ip:3002/`
 - Events: `message_created`
 - Secret: (opcional)
