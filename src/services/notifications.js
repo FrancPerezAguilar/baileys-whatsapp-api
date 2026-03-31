@@ -82,17 +82,19 @@ class TelegramNotifier {
 
       // Remove data URL prefix if present
       const base64Data = photoBase64.replace(/^data:image\/\w+;base64,/, '');
+      // Convert base64 to binary buffer
+      const binaryData = Buffer.from(base64Data, 'base64');
+
+      const formData = new FormData();
+      formData.append('chat_id', this.chatId);
+      formData.append('photo', new Blob([binaryData], { type: 'image/png' }), 'qr.png');
+      formData.append('caption', caption);
+      formData.append('parse_mode', 'HTML');
+      formData.append('disable_notification', disableNotification);
 
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: this.chatId,
-          photo: `data:image/png;base64,${base64Data}`,
-          caption,
-          parse_mode: 'HTML',
-          disable_notification: disableNotification
-        })
+        body: formData
       });
 
       const result = await response.json();

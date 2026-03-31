@@ -190,6 +190,12 @@ class WhatsAppBridge {
 // Create bridge instance
 const bridge = new WhatsAppBridge();
 
+// Configure Telegram notifier before starting bridge (QR may be generated immediately)
+telegramNotifier.configure(
+  config.telegram.botToken,
+  config.telegram.chatId
+);
+
 // Start bridge automatically
 bridge.start().catch(console.error);
 
@@ -275,13 +281,7 @@ app.listen(PORT, async () => {
   console.log(`[API] Bridge API running on port ${PORT}`);
   console.log(`[API] Webhook endpoint: http://localhost:${PORT}/webhook`);
   console.log(`[API] Configure this URL in Chatwoot webhooks`);
-  
-  // Configure Telegram notifier
-  telegramNotifier.configure(
-    config.telegram.botToken,
-    config.telegram.chatId
-  );
-  
+
   // Send startup alert
   await telegramNotifier.alertBridgeStarted();
   
