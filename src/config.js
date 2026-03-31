@@ -6,6 +6,7 @@ export const config = {
     url: process.env.CHATWOOT_URL || 'http://localhost:3000',
     apiKey: process.env.CHATWOOT_API_KEY,
     inboxId: process.env.CHATWOOT_INBOX_ID,
+    accountId: process.env.CHATWOOT_ACCOUNT_ID,
   },
   redis: {
     host: process.env.REDIS_HOST || 'localhost',

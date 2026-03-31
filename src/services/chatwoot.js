@@ -2,13 +2,18 @@ import { config } from '../config.js';
 import { retryQueue } from './retryQueue.js';
 import { cache } from './cache.js';
 
-const { url, apiKey, inboxId } = config.chatwoot;
+const { url, apiKey, inboxId, accountId } = config.chatwoot;
 
 class ChatwootClient {
   constructor() {
     this.baseUrl = url.replace(/\/$/, '');
     this.apiKey = apiKey;
     this.inboxId = inboxId;
+    this.accountId = accountId;
+  }
+
+  get accountPath() {
+    return this.accountId ? `/api/v1/accounts/${this.accountId}` : '/api/v1';
   }
 
   get headers() {
@@ -62,7 +67,7 @@ class ChatwootClient {
       return cached;
     }
 
-    const result = await this.request('GET', `/api/v1/contacts/search?q=${encodeURIComponent(identifier)}&fetch_id=true`);
+    const result = await this.request('GET', `${this.accountPath}/contacts/search?q=${encodeURIComponent(identifier)}&fetch_id=true`);
     const contact = result.payload?.contacts?.[0];
     
     if (contact) {
@@ -73,7 +78,7 @@ class ChatwootClient {
   }
 
   async createContact(identifier, name = '', email = '', phone = '') {
-    return this.request('POST', '/api/v1/contacts', {
+    return this.request('POST', `${this.accountPath}/contacts`, {
       contact: {
         identifier,
         name,
@@ -84,16 +89,16 @@ class ChatwootClient {
   }
 
   async getContact(id) {
-    return this.request('GET', `/api/v1/contacts/${id}`);
+    return this.request('GET', `${this.accountPath}/contacts/${id}`);
   }
 
   async updateContact(id, data) {
-    return this.request('PUT', `/api/v1/contacts/${id}`, { contact: data });
+    return this.request('PUT', `${this.accountPath}/contacts/${id}`, { contact: data });
   }
 
   // Conversation operations
   async createConversation(contactId, inboxIdToUse = null) {
-    return this.request('POST', '/api/v1/conversations', {
+    return this.request('POST', `${this.accountPath}/conversations`, {
       conversation: {
         contact_id: contactId,
         inbox_id: inboxIdToUse || this.inboxId
@@ -102,11 +107,11 @@ class ChatwootClient {
   }
 
   async getConversation(id) {
-    return this.request('GET', `/api/v1/conversations/${id}`);
+    return this.request('GET', `${this.accountPath}/conversations/${id}`);
   }
 
   async getConversations(contactId) {
-    return this.request('GET', `/api/v1/contacts/${contactId}/conversations`);
+    return this.request('GET', `${this.accountPath}/contacts/${contactId}/conversations`);
   }
 
   async findOrCreateConversation(identifier, name = '') {
@@ -149,7 +154,7 @@ class ChatwootClient {
 
   // Message operations
   async createMessage(conversationId, message) {
-    return this.request('POST', `/api/v1/conversations/${conversationId}/messages`, {
+    return this.request('POST', `${this.accountPath}/conversations/${conversationId}/messages`, {
       message: {
         content: message.content,
         message_type: message.messageType || 'incoming',
@@ -176,7 +181,7 @@ class ChatwootClient {
     formData.append('file_type', type);
 
     try {
-      const response = await fetch(`${this.baseUrl}/api/v1/attachments`, {
+      const response = await fetch(`${this.baseUrl}${this.accountPath}/attachments`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.apiKey}`
@@ -202,12 +207,12 @@ class ChatwootClient {
 
   // Mark as read
   async markAsRead(conversationId) {
-    return this.request('POST', `/api/v1/conversations/${conversationId}/update_last_seen`, null, false); // Don't retry mark as read
+    return this.request('POST', `${this.accountPath}/conversations/${conversationId}/update_last_seen`, null, false); // Don't retry mark as read
   }
 
   // Get messages
   async getMessages(conversationId) {
-    return this.request('GET', `/api/v1/conversations/${conversationId}/messages`);
+    return this.request('GET', `${this.accountPath}/conversations/${conversationId}/messages`);
   }
 }
 
