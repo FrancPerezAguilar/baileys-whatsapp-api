@@ -1,31 +1,36 @@
-# Baileys WhatsApp API
+# Baileys WhatsApp API + Bridge
 
-WhatsApp Web API usando Baileys (WebSocket-based library).
+WhatsApp Web API usando Baileys con integración opcional a Chatwoot.
 
 ## ⚠️ Aviso Legal
 
 Este proyecto usa la librería Baileys para interactuar con WhatsApp Web. WhatsApp no avala ni apoya este proyecto. Uselo bajo su propia responsabilidad y cumpla con los Términos de Servicio de WhatsApp.
+
+## 📦 Proyectos
+
+Este repo contiene:
+
+1. **Baileys WhatsApp API** - API REST para enviar/recibir mensajes de WhatsApp
+2. **Chatwoot Bridge** - Integración con Chatwoot como bandeja de entrada
 
 ## 🚀 Inicio Rápido
 
 ### Docker (Recomendado)
 
 ```bash
+# Clonar repo
+git clone https://github.com/FrancPerezAguilar/baileys-whatsapp-api.git
+cd baileys-whatsapp-api
+
+# Configurar
+cp .env.example .env
+# Editar .env con tus credenciales
+
 # Construir y ejecutar
 docker compose up -d
 
 # Ver logs
 docker compose logs -f
-
-# Parar
-docker compose down
-```
-
-### Local (Desarrollo)
-
-```bash
-npm install
-npm run dev
 ```
 
 ## 📡 API Endpoints
@@ -41,98 +46,34 @@ npm run dev
 | `GET` | `/sessions` | Listar sesiones activas |
 | `GET` | `/health` | Health check |
 
-## 📖 Uso
+## 🔌 Chatwoot Bridge
 
-### 1. Iniciar Sesión
+Ver [PLAN_CHATWOOT_BRIDGE.md](./PLAN_CHATWOOT_BRIDGE.md) para documentación de integración con Chatwoot.
 
-```bash
-curl -X POST http://localhost:3001/session/default
-```
+### Características del Bridge
 
-### 2. Obtener QR Code
-
-```bash
-curl http://localhost:3001/qr/default
-```
-
-Respuesta:
-```json
-{
-  "qr": "data:image/png;base64,..."
-}
-```
-
-Abre la imagen en el navegador o usa Postman.
-
-### 3. Enviar Mensaje
-
-```bash
-curl -X POST http://localhost:3001/send \
-  -H "Content-Type: application/json" \
-  -d '{
-    "sessionId": "default",
-    "jid": "34612345678@s.whatsapp.net",
-    "text": "Hola desde la API!"
-  }'
-```
-
-### 4. Broadcast
-
-```bash
-curl -X POST http://localhost:3001/broadcast \
-  -H "Content-Type: application/json" \
-  -d '{
-    "sessionId": "default",
-    "numbers": ["34612345678", "34698765432"],
-    "text": "Mensaje broadcast!"
-  }'
-```
-
-## 🔧 Configuración
-
-### Variables de Entorno
-
-| Variable | Default | Descripción |
-|----------|---------|-------------|
-| `PORT` | `3001` | Puerto de la API |
-| `NODE_ENV` | `development` | Entorno |
-
-### Almacenamiento
-
-- **Auth:** `./auth/` - Credenciales de sesión (persistente)
-- **Logs:** `./logs/` - Archivos de log
-
-## 📁 Estructura
-
-```
-baileys-whatsapp-api/
-├── src/
-│   └── index.js          # Servidor API
-├── auth/                  # Sesiones (gitignored)
-├── logs/                  # Logs
-├── Dockerfile
-├── docker-compose.yml
-├── package.json
-└── README.md
-```
+- Mensajes de texto, imágenes, audio, video, documentos
+- Sincronización de estado (entregado, leído)
+- Indicadores de typing
+- Conversaciones en Chatwoot
 
 ## 🔒 Seguridad
 
-- Cada sesión tiene su propia carpeta de auth
 - Las credenciales se guardan en disco localmente
-- No exponga el puerto 3001 públicamente sin firewall
-
-## 🐳 Producción
-
-Para producción, considere:
-- Usar reverse proxy (nginx) con SSL
-- Firewall para limitar acceso
-- backup de la carpeta auth/
-- Variables de entorno para configuración sensible
+- No exponga los puertos públicamente sin firewall
+- WhatsApp puede banear cuentas por uso automatizado
 
 ## 📝 Notas
 
 - WhatsApp puede banear cuentas por uso automatizado
-- No recomendado para spam o mensajes masivo
+- No recomendado para spam o mensajes masivos
 - Una sesión puede desconectarse si WhatsApp detecta uso sospechoso
-- Escanee el QR dentro de los 60 segundos
+
+## 📄 Documentación
+
+- [README.md](./README.md) - Documentación principal
+- [PLAN_CHATWOOT_BRIDGE.md](./PLAN_CHATWOOT_BRIDGE.md) - Integración Chatwoot
+
+## 📜 Licencia
+
+MIT
