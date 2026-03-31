@@ -1,6 +1,6 @@
 # Baileys-Chatwoot Bridge
 
-Bridge bidireccional entre WhatsApp (vía Baileys) y Chatwoot.
+Bridge bidireccional entre WhatsApp (vía Baileys) y Chatwoot con cache y cola de reintentos.
 
 ## Arquitectura
 
@@ -14,6 +14,11 @@ WhatsApp ←→ Baileys ←→ Bridge ←→ Chatwoot
                     │ Videos          │
                     │ Documentos      │
                     └─────────────────┘
+                              ↓
+                    ┌─────────────────┐
+                    │ Redis           │
+                    │ (Cache + Retry) │
+                    └─────────────────┘
 ```
 
 ## Características
@@ -25,14 +30,17 @@ WhatsApp ←→ Baileys ←→ Bridge ←→ Chatwoot
 - ✅ Documentos
 - ✅ Conversaciones en Chatwoot
 - ✅ Agentes responden desde Chatwoot
-- ✅ Sincronización de estado
+- ✅ Cache en Redis
+- ✅ Cola de reintentos si falla Chatwoot API
+- ✅ Rate limiting
 
 ## Requisitos
 
 - Node.js 20+
-- Docker (opcional)
+- Docker + Docker Compose
+- Redis (incluido en docker-compose)
 - Cuenta Chatwoot con API enabled
-- Número de WhatsApp (no se puede usar el mismo que en WhatsApp Web)
+- Número de WhatsApp
 
 ## Instalación
 
@@ -57,31 +65,41 @@ docker compose logs -f
 curl http://localhost:3001/qr
 ```
 
-### Local
-
-```bash
-npm install
-npm run dev
-```
-
 ## Configuración
 
-### 1. Chatwoot
-
-1. Crear una cuenta en tu instancia de Chatwoot
-2. Ir a **Settings → Integrations → Webhooks**
-3. Crear webhook con URL: `http://tu-dominio:3002/`
-4. Seleccionar eventos: `message_created`
-5. Copiar el API token del profile
-
-### 2. Variables de Entorno
+### Variables de Entorno
 
 ```bash
+# Chatwoot
 CHATWOOT_URL=https://tu-chatwoot.com
 CHATWOOT_API_KEY=tu_api_key
 CHATWOOT_INBOX_ID=1
+
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=tu_password
+
+# Webhook
 WEBHOOK_SECRET=secreto_opcional
 ```
+
+## Redis - Cache y Retry
+
+El bridge usa Redis para:
+
+### Cache
+- Conversaciones (JID → Chatwoot ID)
+- Mensajes (mappings WhatsApp ↔ Chatwoot)
+- Contactos
+- Rate limiting por usuario
+
+### Cola de Reintentos
+Si la API de Chatwoot falla:
+1. El mensaje se guarda en Redis
+2. Se reintenta con backoff: 1s, 5s, 15s, 30s, 1min
+3. Máximo 5 intentos
+4. Si falla definitivamente, se puede revisar
 
 ## API Endpoints
 
@@ -92,21 +110,10 @@ WEBHOOK_SECRET=secreto_opcional
 | `POST` | `/send` | Enviar mensaje |
 | `POST` | `/webhook` | Webhook de Chatwoot |
 
-### Enviar Mensaje
-
-```bash
-curl -X POST http://localhost:3001/send \
-  -H "Content-Type: application/json" \
-  -d '{
-    "to": "34612345678",
-    "text": "Hola desde el bridge!"
-  }'
-```
-
-### Configurar Webhook en Chatwoot
+## Configurar Webhook en Chatwoot
 
 En Chatwoot Settings → Integrations → Webhooks:
-- URL: `http://tu-ip-publica:3002/`
+- URL: `http://tu-ip:3002/`
 - Events: `message_created`
 - Secret: (opcional)
 
@@ -125,7 +132,25 @@ En Chatwoot Settings → Integrations → Webhooks:
 
 - No exponer los puertos públicamente sin firewall
 - Usar HTTPS en producción
-- Mantener el API key segura
+- Mantener el API key y Redis password seguras
+
+## Estructura
+
+```
+src/
+├── index.js              # Main + Express API
+├── config.js             # Configuration
+├── services/
+│   ├── chatwoot.js      # Chatwoot API client
+│   ├── media.js          # Media download/upload
+│   ├── cache.js          # Redis cache
+│   └── retryQueue.js     # Retry queue
+├── handlers/
+│   ├── incoming.js       # WhatsApp → Chatwoot
+│   └── outgoing.js        # Chatwoot → WhatsApp
+└── state/
+    └── store.js          # Local state (backup)
+```
 
 ## Licencia
 

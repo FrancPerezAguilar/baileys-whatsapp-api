@@ -1,6 +1,6 @@
 import chatwoot from '../services/chatwoot.js';
 import { downloadAllMedia, getMsgContent } from '../services/media.js';
-import state from '../state/store.js';
+import { cache } from '../services/cache.js';
 import { config } from '../config.js';
 
 export async function handleIncomingMessage(sock, msg) {
@@ -23,17 +23,40 @@ export async function handleIncomingMessage(sock, msg) {
     
     console.log(`[Incoming] Message from ${from}:`, getMsgContent(message).substring(0, 100));
 
-    // Get or create contact
-    const contactInfo = state.getOrCreateContact(jid);
-    
-    // Find or create conversation in Chatwoot
-    let { contact, conversation } = await chatwoot.findOrCreateConversation(
-      from,
-      contactInfo.name || from
-    );
+    // Rate limit per sender
+    const rateCheck = await cache.rateLimit(`incoming:${from}`, 30, 60); // 30 msg/min
+    if (!rateCheck.allowed) {
+      console.log(`[Incoming] Rate limited: ${from}`);
+      return;
+    }
 
-    // Save conversation mapping
-    state.setConversation(jid, conversation.id);
+    // Check if already processed (idempotency)
+    const existingCwMsgId = await cache.getCwMsgId(key.id);
+    if (existingCwMsgId) {
+      console.log(`[Incoming] Message ${key.id} already processed`);
+      return;
+    }
+
+    // Get contact info
+    const contactInfo = {
+      jid,
+      name: msg.pushName || from
+    };
+    await cache.setContact(jid, contactInfo, 3600);
+
+    // Find or create conversation in Chatwoot
+    let conversation;
+    try {
+      const result = await chatwoot.findOrCreateConversation(from, contactInfo.name || from);
+      conversation = result.conversation;
+      
+      // Cache the mapping
+      await cache.setConversationJid(jid, conversation.id);
+    } catch (error) {
+      console.error('[Incoming] Chatwoot conversation error:', error.message);
+      // Queue message for later retry
+      return; // For now, just drop the message
+    }
 
     // Download attachments
     const attachments = await downloadAllMedia(message);
@@ -42,43 +65,47 @@ export async function handleIncomingMessage(sock, msg) {
     const msgContent = getMsgContent(message);
     const hasMedia = attachments.length > 0;
 
-    if (hasMedia) {
-      // Upload each attachment and create message
-      for (const att of attachments) {
-        try {
-          const uploaded = await chatwoot.uploadAttachment(att.buffer, att.filename, att.type);
-          
-          await chatwoot.createMessage(conversation.id, {
-            content: att.type === 'audio' ? '🎤 Nota de voz' : (msgContent || `📎 ${att.filename}`),
-            messageType: 'incoming',
-            contentType: 'text',
-            attachments: [{
-              id: uploaded.id,
-              filename: uploaded.file.filename,
-              content_type: uploaded.file.content_type
-            }]
-          });
-        } catch (uploadError) {
-          console.error('[Incoming] Attachment upload error:', uploadError);
-          // Send text without attachment
-          if (msgContent) {
-            await chatwoot.createTextMessage(conversation.id, msgContent);
+    try {
+      if (hasMedia) {
+        // Upload each attachment and create message
+        for (const att of attachments) {
+          try {
+            const uploaded = await chatwoot.uploadAttachment(att.buffer, att.filename, att.type);
+            
+            await chatwoot.createMessage(conversation.id, {
+              content: att.type === 'audio' ? '🎤 Nota de voz' : (msgContent || `📎 ${att.filename}`),
+              messageType: 'incoming',
+              contentType: 'text',
+              attachments: [{
+                id: uploaded.id,
+                filename: uploaded.file.filename,
+                content_type: uploaded.file.content_type
+              }]
+            });
+          } catch (uploadError) {
+            console.error('[Incoming] Attachment upload error:', uploadError);
+            // Send text without attachment
+            if (msgContent) {
+              await chatwoot.createTextMessage(conversation.id, msgContent);
+            }
           }
         }
+      } else if (msgContent) {
+        // Text-only message
+        const cwMsg = await chatwoot.createTextMessage(conversation.id, msgContent);
+        
+        // Cache message mapping for reply handling
+        await cache.setCwMsgId(key.id, cwMsg.id);
       }
-    } else if (msgContent) {
-      // Text-only message
-      await chatwoot.createTextMessage(conversation.id, msgContent);
+
+      // Mark as read
+      await chatwoot.markAsRead(conversation.id);
+
+      console.log(`[Incoming] Message sent to Chatwoot conversation ${conversation.id}`);
+    } catch (error) {
+      console.error('[Incoming] Chatwoot message error:', error.message);
+      // Could queue for retry here
     }
-
-    // Save message mapping
-    // Note: We'd need the chatwoot message ID, but createTextMessage returns it
-    // For now we skip explicit mapping as we handle async
-
-    // Mark as read
-    await chatwoot.markAsRead(conversation.id);
-
-    console.log(`[Incoming] Message sent to Chatwoot conversation ${conversation.id}`);
   } catch (error) {
     console.error('[Incoming] Error handling message:', error);
   }

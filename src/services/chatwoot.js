@@ -1,4 +1,6 @@
 import { config } from '../config.js';
+import { retryQueue } from './retryQueue.js';
+import { cache } from './cache.js';
 
 const { url, apiKey, inboxId } = config.chatwoot;
 
@@ -16,7 +18,7 @@ class ChatwootClient {
     };
   }
 
-  async request(method, path, body = null) {
+  async request(method, path, body = null, useRetry = true) {
     const options = {
       method,
       headers: this.headers,
@@ -26,20 +28,48 @@ class ChatwootClient {
       options.body = JSON.stringify(body);
     }
 
-    const response = await fetch(`${this.baseUrl}${path}`, options);
-    
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Chatwoot API error: ${response.status} - ${error}`);
-    }
+    try {
+      const response = await fetch(`${this.baseUrl}${path}`, options);
+      
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Chatwoot API error: ${response.status} - ${error}`);
+      }
 
-    return response.json();
+      return response.json();
+    } catch (error) {
+      // If API fails and retry is enabled, queue for retry
+      if (useRetry) {
+        console.error(`[Chatwoot] Request failed, queuing for retry:`, error.message);
+        await retryQueue.add({
+          method,
+          path,
+          body,
+          error: error.message,
+          timestamp: Date.now()
+        }, 0); // priority 0 = normal
+      }
+      throw error;
+    }
   }
 
   // Contact operations
   async searchContact(identifier) {
+    // Check cache first
+    const cached = await cache.get(`contact_search:${identifier}`);
+    if (cached) {
+      console.log(`[Chatwoot] Contact ${identifier} found in cache`);
+      return cached;
+    }
+
     const result = await this.request('GET', `/api/v1/contacts/search?q=${encodeURIComponent(identifier)}&fetch_id=true`);
-    return result.payload?.contacts?.[0];
+    const contact = result.payload?.contacts?.[0];
+    
+    if (contact) {
+      await cache.set(`contact:${identifier}`, contact, 3600);
+    }
+    
+    return contact;
   }
 
   async createContact(identifier, name = '', email = '', phone = '') {
@@ -80,6 +110,13 @@ class ChatwootClient {
   }
 
   async findOrCreateConversation(identifier, name = '') {
+    // Check cache first
+    const cachedConvId = await cache.getConversationJid(identifier);
+    if (cachedConvId) {
+      const conv = await this.getConversation(cachedConvId);
+      return { conversation: conv, fromCache: true };
+    }
+
     // Try to find existing contact
     let contact = await this.searchContact(identifier);
     
@@ -96,11 +133,17 @@ class ChatwootClient {
     const existingConv = conversations.payload?.find(c => c.inbox_id === parseInt(this.inboxId));
     
     if (existingConv) {
+      // Cache the mapping
+      await cache.setConversationJid(existingConv.id, identifier);
       return { contact, conversation: existingConv };
     }
 
     // Create new conversation
     const created = await this.createConversation(contact.id);
+    
+    // Cache the mapping
+    await cache.setConversationJid(created.id, identifier);
+    
     return { contact, conversation: created };
   }
 
@@ -132,24 +175,37 @@ class ChatwootClient {
     formData.append('attachment', blob, filename);
     formData.append('file_type', type);
 
-    const response = await fetch(`${this.baseUrl}/api/v1/attachments`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.apiKey}`
-      },
-      body: formData
-    });
+    try {
+      const response = await fetch(`${this.baseUrl}/api/v1/attachments`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`
+        },
+        body: formData
+      });
 
-    if (!response.ok) {
-      throw new Error(`Attachment upload failed: ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`Attachment upload failed: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      // Queue for retry
+      await retryQueue.add({
+        type: 'attachment',
+        buffer: buffer.toString('base64'), // Note: may exceed size limits
+        filename,
+        type,
+        conversationId: null, // Will need to be provided
+        error: error.message
+      }, 1); // priority 1 = low (attachments less critical)
+      throw error;
     }
-
-    return response.json();
   }
 
   // Mark as read
   async markAsRead(conversationId) {
-    return this.request('POST', `/api/v1/conversations/${conversationId}/update_last_seen`);
+    return this.request('POST', `/api/v1/conversations/${conversationId}/update_last_seen`, null, false); // Don't retry mark as read
   }
 
   // Get messages

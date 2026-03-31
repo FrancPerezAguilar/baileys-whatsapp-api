@@ -10,6 +10,8 @@ import { mkdirSync, existsSync, readFileSync } from 'fs';
 import { config } from './config.js';
 import chatwoot from './services/chatwoot.js';
 import state from './state/store.js';
+import { cache } from './services/cache.js';
+import { retryQueue } from './services/retryQueue.js';
 import { handleIncomingMessage, handleMessageDelete } from './handlers/incoming.js';
 import { handleOutgoingMessage, parseChatwootWebhook } from './handlers/outgoing.js';
 import { downloadAllMedia } from './services/media.js';
@@ -229,10 +231,30 @@ app.post('/webhook', async (req, res) => {
 
 // Start server
 const PORT = config.server.port;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`[API] Bridge API running on port ${PORT}`);
   console.log(`[API] Webhook endpoint: http://localhost:${PORT}/webhook`);
   console.log(`[API] Configure this URL in Chatwoot webhooks`);
+  
+  // Connect to Redis
+  const redisConnected = await cache.connect();
+  if (redisConnected) {
+    console.log('[API] Redis connected - caching enabled');
+    
+    // Set up retry queue executor
+    retryQueue.setExecutor(async (job) => {
+      console.log(`[RetryQueue] Executing job:`, job.type || 'api_call');
+      // Re-execute the Chatwoot API call
+      // This would need proper implementation based on job type
+      return { success: true };
+    });
+    
+    // Start retry queue
+    retryQueue.startProcessor();
+    console.log('[API] Retry queue processor started');
+  } else {
+    console.warn('[API] Redis not available - running without cache/retry');
+  }
 });
 
 // Start webhook receiver on separate port

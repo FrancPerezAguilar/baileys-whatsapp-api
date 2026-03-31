@@ -7,6 +7,11 @@ export const config = {
     apiKey: process.env.CHATWOOT_API_KEY,
     inboxId: process.env.CHATWOOT_INBOX_ID,
   },
+  redis: {
+    host: process.env.REDIS_HOST || 'localhost',
+    port: parseInt(process.env.REDIS_PORT || '6379'),
+    password: process.env.REDIS_PASSWORD || null,
+  },
   session: {
     id: process.env.SESSION_ID || 'default',
     dir: process.env.SESSION_DIR || './auth',
