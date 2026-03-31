@@ -1,4 +1,10 @@
-import { default as makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } from '@whiskeysockets/baileys';
+import baileys from '@whiskeysockets/baileys';
+
+const makeWASocket = baileys.makeWASocket;
+const useMultiFileAuthState = baileys.useMultiFileAuthState;
+const DisconnectReason = baileys.DisconnectReason;
+const fetchLatestBaileysVersion = baileys.fetchLatestBaileysVersion;
+const makeCacheableSignalKeyStore = baileys.makeCacheableSignalKeyStore;
 import express from 'express';
 import cors from 'cors';
 import QRCode from 'qrcode';
