@@ -4,6 +4,7 @@ import { existsSync } from 'fs';
 import path from 'path';
 
 const MEDIA_DIR = './media';
+const MAX_MEDIA_SIZE = 50 * 1024 * 1024; // 50MB
 
 export async function ensureMediaDir() {
   if (!existsSync(MEDIA_DIR)) {
@@ -14,13 +15,18 @@ export async function ensureMediaDir() {
 export async function downloadMedia(msg, type = 'media') {
   try {
     const stream = await downloadContentFromMessage(msg, type);
-    let buffer = Buffer.alloc(0);
-    
+    const chunks = [];
+    let totalSize = 0;
+
     for await (const chunk of stream) {
-      buffer = Buffer.concat([buffer, chunk]);
+      totalSize += chunk.length;
+      if (totalSize > MAX_MEDIA_SIZE) {
+        throw new Error(`Media too large (${Math.round(totalSize / 1024 / 1024)}MB, max ${MAX_MEDIA_SIZE / 1024 / 1024}MB)`);
+      }
+      chunks.push(chunk);
     }
-    
-    return buffer;
+
+    return Buffer.concat(chunks);
   } catch (error) {
     console.error('Error downloading media:', error);
     throw error;

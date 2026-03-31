@@ -31,6 +31,14 @@ class Cache {
     }
   }
 
+  getClient() {
+    return this.redis;
+  }
+
+  isReady() {
+    return this.isConnected;
+  }
+
   async get(key) {
     if (!this.isConnected) return null;
 
@@ -110,23 +118,29 @@ class Cache {
     await this.set(`msg:wa:${waMsgId}`, cwMsgId, ttl);
   }
 
-  // Rate limiting
+  // Rate limiting (atomic with Lua script)
   async rateLimit(key, limit, window) {
     if (!this.isConnected) return { allowed: true, remaining: limit };
 
-    const rateKey = `ratelimit:${key}`;
-    
+    const rateKey = `${this.prefix}ratelimit:${key}`;
+
+    const luaScript = `
+      local current = redis.call('INCR', KEYS[1])
+      if current == 1 then
+        redis.call('EXPIRE', KEYS[1], ARGV[1])
+      end
+      return current
+    `;
+
     try {
-      const current = await this.redis.incr(rateKey);
-      
-      if (current === 1) {
-        await this.redis.expire(rateKey, window);
-      }
+      const current = await this.redis.eval(luaScript, 1, rateKey, window);
+      const ttl = await this.redis.ttl(rateKey);
 
-      const remaining = Math.max(0, limit - current);
-      const allowed = current <= limit;
-
-      return { allowed, remaining, resetIn: await this.redis.ttl(rateKey) };
+      return {
+        allowed: current <= limit,
+        remaining: Math.max(0, limit - current),
+        resetIn: ttl
+      };
     } catch (error) {
       console.error('[Cache] Rate limit error:', error.message);
       return { allowed: true, remaining: limit };

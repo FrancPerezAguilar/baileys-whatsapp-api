@@ -1,4 +1,3 @@
-import fetch from 'node-fetch';
 import { config } from '../config.js';
 
 const ALERT_LEVELS = {
@@ -7,6 +6,16 @@ const ALERT_LEVELS = {
   ERROR: '❌',
   CRITICAL: '🚨'
 };
+
+function escapeHtml(text) {
+  if (!text) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
 class TelegramNotifier {
   constructor() {
@@ -97,7 +106,7 @@ class TelegramNotifier {
   }
 
   async alertChatwootMessageFailed(error, sender) {
-    return this.error(`❌ <b>Mensaje a Chatwoot falló</b>\n\nDe: ${sender}\nError: ${error}\n\nEl mensaje se reintentará automáticamente.`);
+    return this.error(`❌ <b>Mensaje a Chatwoot falló</b>\n\nDe: ${escapeHtml(sender)}\nError: ${escapeHtml(error)}\n\nEl mensaje se reintentará automáticamente.`);
   }
 
   async alertChatwootAPIFailed(attempt, maxAttempts) {
@@ -117,7 +126,7 @@ class TelegramNotifier {
   }
 
   async alertRateLimited(identifier, count) {
-    return this.warning(`⚠️ <b>Rate limit</b>\n\n${identifier} ha enviado ${count} mensajes. Mensajes ignorados por ahora.`);
+    return this.warning(`⚠️ <b>Rate limit</b>\n\n${escapeHtml(identifier)} ha enviado ${count} mensajes. Mensajes ignorados por ahora.`);
   }
 
   async alertMediaDownloadFailed(msgId, error) {

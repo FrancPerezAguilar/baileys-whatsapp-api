@@ -190,13 +190,10 @@ class ChatwootClient {
 
       return response.json();
     } catch (error) {
-      // Queue for retry
+      // Queue for retry (without buffer to avoid memory issues)
       await retryQueue.add({
-        type: 'attachment',
-        buffer: buffer.toString('base64'), // Note: may exceed size limits
-        filename,
-        type,
-        conversationId: null, // Will need to be provided
+        retryType: 'attachment',
+        mediaRef: { filename, mediaType: type },
         error: error.message
       }, 1); // priority 1 = low (attachments less critical)
       throw error;

@@ -1,5 +1,4 @@
-import Redis from 'ioredis';
-import { config } from '../config.js';
+import { cache } from './cache.js';
 
 const RETRY_QUEUE_KEY = 'chatwoot:retry:queue';
 const RETRY_PROCESSED_KEY = 'chatwoot:retry:processed';
@@ -8,45 +7,15 @@ const RETRY_DELAYS = [1000, 5000, 15000, 30000, 60000]; // 1s, 5s, 15s, 30s, 1mi
 
 class RetryQueue {
   constructor() {
-    this.redis = null;
-    this.isConnected = false;
     this.processorInterval = null;
   }
 
-  async connect() {
-    try {
-      this.redis = new Redis({
-        host: config.redis.host,
-        port: config.redis.port,
-        password: config.redis.password || undefined,
-        maxRetriesPerRequest: 3,
-        lazyConnect: true
-      });
+  get redis() {
+    return cache.getClient();
+  }
 
-      await this.redis.connect();
-      this.isConnected = true;
-      console.log('[Redis] Connected successfully');
-
-      // Handle errors
-      this.redis.on('error', (err) => {
-        console.error('[Redis] Error:', err.message);
-        this.isConnected = false;
-      });
-
-      this.redis.on('close', () => {
-        console.log('[Redis] Connection closed');
-        this.isConnected = false;
-      });
-
-      // Start processor
-      this.startProcessor();
-
-      return true;
-    } catch (error) {
-      console.error('[Redis] Connection failed:', error.message);
-      this.isConnected = false;
-      return false;
-    }
+  get isConnected() {
+    return cache.isReady();
   }
 
   async add(message, priority = 0) {
@@ -82,11 +51,11 @@ class RetryQueue {
     try {
       // Get job with lowest score (highest priority + oldest)
       const jobs = await this.redis.zrange(RETRY_QUEUE_KEY, 0, 0);
-      
+
       if (jobs.length === 0) return null;
 
       const job = JSON.parse(jobs[0]);
-      
+
       // Check if should process now
       const delay = RETRY_DELAYS[job.attempts] || RETRY_DELAYS[RETRY_DELAYS.length - 1];
       const shouldProcess = Date.now() - job.createdAt >= delay;
@@ -124,7 +93,7 @@ class RetryQueue {
 
     try {
       job.attempts++;
-      
+
       if (job.attempts >= MAX_RETRIES) {
         console.error(`[RetryQueue] Job ${job.id} permanently failed after ${job.attempts} attempts`);
         // Could notify here or move to dead letter queue
@@ -134,7 +103,7 @@ class RetryQueue {
       // Re-add to queue with same priority
       const score = job.priority * 10000000000 + Date.now();
       await this.redis.zadd(RETRY_QUEUE_KEY, score, JSON.stringify(job));
-      
+
       console.log(`[RetryQueue] Job ${job.id} failed, retry ${job.attempts}/${MAX_RETRIES}`);
     } catch (error) {
       console.error('[RetryQueue] Error marking failed:', error.message);
@@ -151,12 +120,12 @@ class RetryQueue {
 
     this.processorInterval = setInterval(async () => {
       const job = await this.processJob();
-      
+
       if (job) {
         try {
           // Execute the job (call Chatwoot API)
           const result = await this.executeJob(job);
-          
+
           if (result.success) {
             await this.markSuccess(job);
           } else {
@@ -185,9 +154,7 @@ class RetryQueue {
       clearInterval(this.processorInterval);
       this.processorInterval = null;
     }
-    if (this.redis) {
-      this.redis.disconnect();
-    }
+    // Note: Redis connection is shared with cache, don't disconnect here
   }
 }
 

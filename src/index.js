@@ -2,10 +2,12 @@ import { default as makeWASocket, useMultiFileAuthState, DisconnectReason, fetch
 import express from 'express';
 import cors from 'cors';
 import QRCode from 'qrcode';
-import { Boom } from '@hapi/boom';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { mkdirSync, existsSync, readFileSync } from 'fs';
+import pino from 'pino';
+
+const logger = pino({ level: process.env.LOG_LEVEL || 'warn' });
 
 import { config } from './config.js';
 import chatwoot from './services/chatwoot.js';
@@ -44,11 +46,11 @@ class WhatsAppBridge {
     this.sock = makeWASocket({
       auth: {
         creds: state.creds,
-        keys: makeCacheableSignalKeyStore(state.keys, console.log),
+        keys: makeCacheableSignalKeyStore(state.keys, logger.info.bind(logger)),
       },
       version,
       printQRInTerminal: true,
-      logger: console,
+      logger,
       defaultQuotedTimeoutMs: 0,
       generateHighQualityLinkPreview: true,
       getMessage: async (key) => {

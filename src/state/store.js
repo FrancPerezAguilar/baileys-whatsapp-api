@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, writeFile, existsSync } from 'fs';
 import { dirname } from 'path';
 import { mkdirSync } from 'fs';
 
@@ -10,6 +10,7 @@ class State {
     this.waToCw = new Map(); // waMsgId -> { cwMsgId, conversationId, direction }
     this.cwToWa = new Map(); // cwMsgId -> waMsgId
     this.contacts = new Map(); // waJid -> { name, notify, verifiedName }
+    this._saveTimeout = null;
     this.load();
   }
 
@@ -39,20 +40,27 @@ class State {
   }
 
   save() {
-    try {
-      mkdirSync(dirname(STATE_FILE), { recursive: true });
-      
-      const data = {
-        conversations: Object.fromEntries(this.conversations),
-        waToCw: Object.fromEntries([...this.waToCw.entries()].map(([k, v]) => [k, Object.fromEntries(v)])),
-        cwToWa: Object.fromEntries(this.cwToWa),
-        contacts: Object.fromEntries(this.contacts)
-      };
-      
-      writeFileSync(STATE_FILE, JSON.stringify(data, null, 2));
-    } catch (error) {
-      console.error('[State] Error saving:', error);
-    }
+    // Debounce: save max once per second
+    if (this._saveTimeout) return;
+
+    this._saveTimeout = setTimeout(async () => {
+      try {
+        mkdirSync(dirname(STATE_FILE), { recursive: true });
+
+        const data = {
+          conversations: Object.fromEntries(this.conversations),
+          waToCw: Object.fromEntries([...this.waToCw.entries()].map(([k, v]) => [k, Object.fromEntries(v)])),
+          cwToWa: Object.fromEntries(this.cwToWa),
+          contacts: Object.fromEntries(this.contacts)
+        };
+
+        await writeFile(STATE_FILE, JSON.stringify(data, null, 2));
+      } catch (error) {
+        console.error('[State] Error saving:', error);
+      } finally {
+        this._saveTimeout = null;
+      }
+    }, 1000);
   }
 
   // Conversation methods
