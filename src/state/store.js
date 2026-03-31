@@ -54,7 +54,7 @@ class State {
           contacts: Object.fromEntries(this.contacts)
         };
 
-        await writeFile(STATE_FILE, JSON.stringify(data, null, 2));
+        await writeFile(STATE_FILE, JSON.stringify(data));
       } catch (error) {
         console.error('[State] Error saving:', error);
       } finally {

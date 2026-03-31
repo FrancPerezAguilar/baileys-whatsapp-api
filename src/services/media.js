@@ -1,16 +1,6 @@
 import { downloadContentFromMessage } from '@whiskeysockets/baileys';
-import { writeFile, mkdir } from 'fs/promises';
-import { existsSync } from 'fs';
-import path from 'path';
 
-const MEDIA_DIR = './media';
 const MAX_MEDIA_SIZE = 50 * 1024 * 1024; // 50MB
-
-export async function ensureMediaDir() {
-  if (!existsSync(MEDIA_DIR)) {
-    await mkdir(MEDIA_DIR, { recursive: true });
-  }
-}
 
 export async function downloadMedia(msg, type = 'media') {
   try {
@@ -49,14 +39,6 @@ export async function downloadDocument(msg) {
   return downloadMedia(msg, 'document');
 }
 
-export async function downloadAndSave(msg, type, filename) {
-  await ensureMediaDir();
-  const buffer = await downloadMedia(msg, type);
-  const filepath = path.join(MEDIA_DIR, filename);
-  await writeFile(filepath, buffer);
-  return filepath;
-}
-
 export function getMimeType(msg) {
   if (msg.imageMessage) return msg.imageMessage.mimetype;
   if (msg.audioMessage) return msg.audioMessage.mimetype;
@@ -89,20 +71,6 @@ export function getMsgContent(msg) {
   if (msg.conversation) return msg.conversation;
   if (msg.extendedTextMessage) return msg.extendedTextMessage.text;
   return '';
-}
-
-export function getQuotedMsg(msg) {
-  if (msg.extendedTextMessage?.contextInfo?.quotedMessage) {
-    return msg.extendedTextMessage.contextInfo.quotedMessage;
-  }
-  return null;
-}
-
-export function getQuotedMsgId(msg) {
-  if (msg.extendedTextMessage?.contextInfo?.stanzaId) {
-    return msg.extendedTextMessage.contextInfo.stanzaId;
-  }
-  return null;
 }
 
 export async function downloadAllMedia(msg) {

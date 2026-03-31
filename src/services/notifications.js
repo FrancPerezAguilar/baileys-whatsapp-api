@@ -224,16 +224,6 @@ class TelegramNotifier {
     return this.error(`❌ <b>Mensaje a Chatwoot falló</b>\n\nDe: ${escapeHtml(sender)}\nError: ${escapeHtml(error)}\n\nEl mensaje se reintentará automáticamente.`);
   }
 
-  async alertChatwootAPIFailed(attempt, maxAttempts) {
-    if (!shouldSend('alert:chatwoot-api-failed', attempt)) return false;
-    return this.warning(`⚠️ <b>Chatwoot API falló</b>\n\nIntento ${attempt}/${maxAttempts}\n\nSe reintentará automáticamente.`);
-  }
-
-  async alertChatwootMessageSent(to, preview) {
-    if (!shouldSend('alert:chatwoot-sent', to)) return false;
-    return this.info(`📤 <b>Mensaje enviado a Chatwoot</b>\n\nPara: ${to}\n${preview.substring(0, 100)}`);
-  }
-
   async alertBridgeStarted() {
     if (!shouldSend('alert:bridge-started')) return false;
     return this.info('🚀 <b>Bridge iniciado</b>\n\nEl servicio está arrancando...');
@@ -247,16 +237,6 @@ class TelegramNotifier {
   async alertRateLimited(identifier, count) {
     if (!shouldSend('alert:rate-limited', identifier)) return false;
     return this.warning(`⚠️ <b>Rate limit</b>\n\n${escapeHtml(identifier)} ha enviado ${count} mensajes. Mensajes ignorados por ahora.`);
-  }
-
-  async alertMediaDownloadFailed(msgId, error) {
-    if (!shouldSend('alert:media-failed', msgId)) return false;
-    return this.warning(`⚠️ <b>Descarga de media falló</b>\n\nMensaje: ${msgId}\nError: ${error}`);
-  }
-
-  async alertRetryFailed(jobId, attempts) {
-    if (!shouldSend('alert:retry-failed', jobId)) return false;
-    return this.error(`❌ <b>Reintento fallido</b>\n\nJob: ${jobId}\nIntentos: ${attempts}\n\nSe necesita intervención manual.`);
   }
 }
 

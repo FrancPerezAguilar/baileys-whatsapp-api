@@ -59,9 +59,9 @@ export async function handleOutgoingMessage(sock, payload) {
       // Text message
       // Check if it's a reply
       if (message.in_reply_to) {
-        const parentMapping = state.getByCwMsgId(message.in_reply_to);
-        if (parentMapping) {
-          msgOptions.quoted = { remoteJid: jid, id: parentMapping };
+        const parentWaMsgId = state.getByCwMsgId(message.in_reply_to);
+        if (parentWaMsgId) {
+          msgOptions.quoted = { remoteJid: jid, id: parentWaMsgId };
         }
       }
 

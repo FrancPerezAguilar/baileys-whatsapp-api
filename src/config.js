@@ -23,7 +23,6 @@ export const config = {
   },
   server: {
     port: parseInt(process.env.PORT || '3001'),
-    webhookPort: parseInt(process.env.WEBHOOK_PORT || '3002'),
   },
   webhook: {
     secret: process.env.WEBHOOK_SECRET,

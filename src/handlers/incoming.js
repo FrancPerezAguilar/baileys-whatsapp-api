@@ -118,32 +118,14 @@ export async function handleIncomingMessage(sock, msg) {
 }
 
 export async function handleMessageDelete(sock, key) {
-  console.log('[Delete] Message deleted:', key.id);
-
   try {
-    // Look up the Chatwoot message ID from WhatsApp message ID
     const mapping = state.getByWaMsgId(key.id);
 
     if (mapping && mapping.cwMsgId && mapping.conversationId) {
-      console.log(`[Delete] Syncing deletion to Chatwoot: cwMsgId=${mapping.cwMsgId}, conv=${mapping.conversationId}`);
-
-      // In Chatwoot, deleted messages are typically soft-deleted by updating their status
-      // Chatwoot doesn't have a direct "delete message" API, but we can log it
-      // The actual deletion visibility depends on Chatwoot's configuration
-      console.log(`[Delete] Would delete Chatwoot message ${mapping.cwMsgId} in conversation ${mapping.conversationId}`);
-
-      // Clear the mapping since the message is deleted
-      // Note: We don't actually delete from Chatwoot as their API doesn't support it
+      // Chatwoot API doesn't support message deletion; log for visibility
+      console.log(`[Delete] WA:${key.id} -> CW:${mapping.cwMsgId} in conv:${mapping.conversationId}`);
     }
   } catch (error) {
-    console.error('[Delete] Error syncing deletion:', error.message);
+    console.error('[Delete] Error:', error.message);
   }
-}
-
-export async function handleGroupJoin(sock, notification) {
-  console.log('[Group] Joined:', notification.id);
-}
-
-export async function handleGroupLeave(sock, notification) {
-  console.log('[Group] Left:', notification.id);
 }

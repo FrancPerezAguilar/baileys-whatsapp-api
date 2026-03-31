@@ -141,11 +141,6 @@ class WhatsAppBridge {
       }
     });
 
-    // Handle presence updates
-    this.sock.ev.on('presence.update', async (update) => {
-      console.log('[Presence]', update);
-    });
-
     return this.sock;
   }
 
@@ -323,30 +318,6 @@ app.listen(PORT, async () => {
   }
 });
 
-// Start webhook receiver on separate port
-const webhookApp = express();
-webhookApp.use(express.json({ limit: '1mb' }));
-
-webhookApp.post('/', async (req, res) => {
-  try {
-    const signature = req.headers['x-chatwoot-signature'];
-    if (!validateWebhook(req.body, signature, config.webhook.secret)) {
-      return res.status(401).json({ error: 'Invalid webhook signature' });
-    }
-
-    const payload = parseChatwootWebhook(req.body);
-    await handleOutgoingMessage(bridge.sock, payload);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('[Webhook] Error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-const WEBHOOK_PORT = config.server.webhookPort;
-webhookApp.listen(WEBHOOK_PORT, () => {
-  console.log(`[Webhook] Receiver running on port ${WEBHOOK_PORT}`);
-});
 
 // Graceful shutdown
 async function gracefulShutdown(signal) {
