@@ -18,12 +18,15 @@ services:
       - CHATWOOT_URL=${CHATWOOT_URL}
       - CHATWOOT_API_KEY=${CHATWOOT_API_KEY}
       - CHATWOOT_INBOX_ID=${CHATWOOT_INBOX_ID}
+      - CHATWOOT_ACCOUNT_ID=${CHATWOOT_ACCOUNT_ID}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET}
       - SESSION_ID=default
       - SESSION_DIR=/app/auth
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
     depends_on:
       redis:
         condition: service_healthy
