@@ -587,5 +587,5 @@ app.use(express.json({ limit: '1mb' }));
 ---
 
 **⚠️ Notas:**
-- *B17: No se puede generar `package-lock.json` porque el paquete `@WhiskeySockets/baileys` tiene un nombre inválido para npm (contiene mayúsculas). El nombre debe cambiarse a `@whiskeysockets/baileys` para poder usar lock files.
+- *B17: No se puede generar `package-lock.json` porque el paquete `@whiskeysockets/baileys` tiene un nombre inválido para npm (contiene mayúsculas). El nombre debe cambiarse a `@whiskeysockets/baileys` para poder usar lock files.
 - *B21: Tests unitarios no implementados - se recomienda agregar en futuro PR.

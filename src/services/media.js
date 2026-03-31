@@ -1,4 +1,4 @@
-import { downloadContentFromMessage } from '@WhiskeySockets/baileys';
+import { downloadContentFromMessage } from '@whiskeysockets/baileys';
 import { writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';

@@ -182,7 +182,7 @@ async function handleChatwootMessage(payload) {
 
 ```javascript
 // media.js
-const { downloadContentFromMessage } = require('@WhiskeySockets/baileys');
+const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 
 async function downloadMedia(msg) {
   const stream = await downloadContentFromMessage(msg, 'media');
