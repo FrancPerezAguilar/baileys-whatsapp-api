@@ -12,6 +12,7 @@ import chatwoot from './services/chatwoot.js';
 import state from './state/store.js';
 import { cache } from './services/cache.js';
 import { retryQueue } from './services/retryQueue.js';
+import { telegramNotifier } from './services/notifications.js';
 import { handleIncomingMessage, handleMessageDelete } from './handlers/incoming.js';
 import { handleOutgoingMessage, parseChatwootWebhook } from './handlers/outgoing.js';
 import { downloadAllMedia } from './services/media.js';
@@ -67,22 +68,28 @@ class WhatsAppBridge {
         this.qrCode = qr;
         console.log('[Baileys] QR Code received - scan with WhatsApp');
         this.qrCode = qr;
+        await telegramNotifier.alertSessionQR();
       }
 
       if (connection === 'connected') {
         this.isConnected = true;
         console.log('[Baileys] Connected to WhatsApp!');
+        await telegramNotifier.alertSessionConnected();
       }
 
       if (connection === 'close') {
         const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-        console.log('[Baileys] Connection closed. Reconnecting:', shouldReconnect);
+        const reason = lastDisconnect?.error?.message || 'Unknown';
+        
+        console.log('[Baileys] Connection closed. Reconnecting:', shouldReconnect, 'Reason:', reason);
         
         if (shouldReconnect) {
           this.isConnected = false;
+          await telegramNotifier.alertSessionClosed(`Reconectando automáticamente. Razón: ${reason}`);
           await this.start();
         } else {
           console.log('[Baileys] Logged out - clear auth to reconnect');
+          await telegramNotifier.alertSessionClosed('Sesión cerrada - requiere re-autenticación');
           state.clear();
         }
       }
@@ -236,6 +243,15 @@ app.listen(PORT, async () => {
   console.log(`[API] Webhook endpoint: http://localhost:${PORT}/webhook`);
   console.log(`[API] Configure this URL in Chatwoot webhooks`);
   
+  // Configure Telegram notifier
+  telegramNotifier.configure(
+    config.telegram.botToken,
+    config.telegram.chatId
+  );
+  
+  // Send startup alert
+  await telegramNotifier.alertBridgeStarted();
+  
   // Connect to Redis
   const redisConnected = await cache.connect();
   if (redisConnected) {
@@ -244,8 +260,6 @@ app.listen(PORT, async () => {
     // Set up retry queue executor
     retryQueue.setExecutor(async (job) => {
       console.log(`[RetryQueue] Executing job:`, job.type || 'api_call');
-      // Re-execute the Chatwoot API call
-      // This would need proper implementation based on job type
       return { success: true };
     });
     

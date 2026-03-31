@@ -12,6 +12,10 @@ export const config = {
     port: parseInt(process.env.REDIS_PORT || '6379'),
     password: process.env.REDIS_PASSWORD || null,
   },
+  telegram: {
+    botToken: process.env.TELEGRAM_BOT_TOKEN || null,
+    chatId: process.env.TELEGRAM_CHAT_ID || null,
+  },
   session: {
     id: process.env.SESSION_ID || 'default',
     dir: process.env.SESSION_DIR || './auth',

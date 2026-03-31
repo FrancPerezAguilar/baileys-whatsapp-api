@@ -2,6 +2,7 @@ import chatwoot from '../services/chatwoot.js';
 import { downloadAllMedia, getMsgContent } from '../services/media.js';
 import { cache } from '../services/cache.js';
 import { config } from '../config.js';
+import { telegramNotifier } from '../services/notifications.js';
 
 export async function handleIncomingMessage(sock, msg) {
   try {
@@ -27,6 +28,7 @@ export async function handleIncomingMessage(sock, msg) {
     const rateCheck = await cache.rateLimit(`incoming:${from}`, 30, 60); // 30 msg/min
     if (!rateCheck.allowed) {
       console.log(`[Incoming] Rate limited: ${from}`);
+      await telegramNotifier.alertRateLimited(from, 30);
       return;
     }
 
@@ -54,6 +56,7 @@ export async function handleIncomingMessage(sock, msg) {
       await cache.setConversationJid(jid, conversation.id);
     } catch (error) {
       console.error('[Incoming] Chatwoot conversation error:', error.message);
+      await telegramNotifier.alertChatwootMessageFailed(error.message, from);
       // Queue message for later retry
       return; // For now, just drop the message
     }
@@ -104,10 +107,12 @@ export async function handleIncomingMessage(sock, msg) {
       console.log(`[Incoming] Message sent to Chatwoot conversation ${conversation.id}`);
     } catch (error) {
       console.error('[Incoming] Chatwoot message error:', error.message);
+      await telegramNotifier.alertChatwootMessageFailed(error.message, from);
       // Could queue for retry here
     }
   } catch (error) {
     console.error('[Incoming] Error handling message:', error);
+    await telegramNotifier.alertBridgeError(error.message);
   }
 }
 
